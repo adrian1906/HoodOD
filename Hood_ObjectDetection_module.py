@@ -116,39 +116,8 @@
 # conda install -c anaconda h5py
 # conda install -c conda-forge lxml
 # conda install scikit-learn
-
-from __future__ import print_function
-from skimage import feature, exposure
-##from skimage import exposure
-import numpy as np
-import h5py
-import simplejson as json
-##from sklearn.feature_extraction.image import extract_patches_2d
-##import argparse
-import random
-import os
-from scipy import io
-from lxml import etree
-import math
-import glob
-#import matplotlib
-#matplotlib.use('agg') # Needed to avoid error on the next line
-import matplotlib.pyplot as plt
-from multiprocessing import Process,Queue
-import cv2
-from sklearn.svm import SVC
-from sklearn.metrics import classification_report
-import sklearn
-sklearn_version =sklearn.__version__;
-if sklearn_version =="0.17.1":
-    ##from sklearn.cross_validation import train_test_split
-    from sklearn.grid_search import GridSearchCV #for Scikit-learn < 2.0
-else: # assumes a later version
-    from sklearn.model_selection import GridSearchCV # For Scikit-learn 2.0
-
-from sklearn.svm import LinearSVC 
-import _pickle as cPickle
-import time
+#
+#
 #from imutils import paths
 ##import progressbar
 #import cv2
@@ -169,131 +138,38 @@ import time
 #conda install -c anaconda progressbar
 #from dlib import progressbar
 
-
-# In[ ]:
-
-class HOG:
-    def __init__(self, orientations=12, pixelsPerCell=(4, 4), cellsPerBlock=(2, 2), normalize=True):
-        # store the number of orientations, pixels per cell, cells per block, and
-        # whether normalization should be applied to the image
-        self.orientations = orientations
-        self.pixelsPerCell = pixelsPerCell
-        self.cellsPerBlock = cellsPerBlock
-        self.normalize = normalize
-        print("HOG configured for Orientations: {}, PixelsPerCell: {}, CellsPerBlock {}, Normalize: {}".format(orientations,
-            pixelsPerCell,cellsPerBlock,normalize))
-        # Pre-calculate feature vector size
-
-    def describe(self, image):
-        # compute Histogram of Oriented Gradients features
-        # To return the hogImage, Visualize needs to be set tot True. 
-        # Use describe_and_return_HOGImage() instead
-        #hist,hogImage = feature.hog(image, orientations=self.orientations, pixels_per_cell=self.pixelsPerCell,
-            #cells_per_block=self.cellsPerBlock, transform_sqrt=self.normalize, visualize=True, block_norm ='L2')
-        hist = feature.hog(image, orientations=self.orientations, pixels_per_cell=self.pixelsPerCell,
-            cells_per_block=self.cellsPerBlock, transform_sqrt=self.normalize, visualize=False, block_norm ='L2')
-        # Note: Feature size will be number of orientations * number of cells in a block * 
-        # number of scans horizontal * number of scans vertical  (Assumes a stride of 1)
-        #print("hist size")
-        #print(hist.shape)
-        hist[hist < 0] = 0
-        #imsize=image.shape
-        #print(imsize)
-        #numberofscansheight=math.floor(imsize[0]/self.pixelsPerCell[0])-1
-        #print("Number of Vertical Scans: ")
-        #print(numberofscansheight)
-
-        #numberofscanswidth=math.floor(imsize[1]/self.pixelsPerCell[1])-1
-        #print("Number of Horizontal Scans: ")
-        #print(numberofscanswidth)
-
-        #numFeaturesPerBlock = self.orientations *self.cellsPerBlock[0]*self.cellsPerBlock[1]
-        #print("Number of features per block")
-        #print(numFeaturesPerBlock)
-
-        #featureLength = numberofscansheight*numberofscanswidth*numFeaturesPerBlock
-        #print("Number of features")
-        #print(featureLength)
-
-        
-
-        #self.plot_hog(image,hogImage)
-        # return the histogram
-        return hist
-
-    def describe_and_return_HOGImage(self, image):
-        # compute Histogram of Oriented Gradients features
-        (hist,hogImage) = feature.hog(image, orientations=self.orientations, pixels_per_cell=self.pixelsPerCell,
-            cells_per_block=self.cellsPerBlock, transform_sqrt=self.normalize, visualize=True)
-        hist[hist < 0] = 0
-        self.plot_hog(image,hogImage)
-        # return the histogram
-        return hist,hogImage
-    
-    def plot_hog(self,image,hog_image):
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), sharex=True, sharey=True)
-        ax1.axis('off')
-        ax1.imshow(image, cmap=plt.cm.gray)
-        ax1.set_title('Input image')
-
-        # Rescale histogram for better display
-        hog_image_rescaled = exposure.rescale_intensity(hog_image, in_range=(0, 10))
-        ax2.axis('off')
-        ax2.imshow(hog_image_rescaled, cmap=plt.cm.gray)
-        ax2.set_title('Histogram of Oriented Gradients')
-        plt.show()   
-
-# In[ ]:
-
-# Referred to as helpers.py in PyImageSearch Class
-def crop_ct101_bb(image, bb, padding=10, dstSize=(32, 32)):
-    # unpack the bounding box, extract the ROI from the image, while taking into account
-    # the supplied offset
-    (y, h, x, w) = bb # Looks like this is y1,y2,x1,x2
-    #print("y,h,x,w ={} {} {} {}".format(y,h,x,w))
-    (x, y) = (max(x - padding, 0), max(y - padding, 0))
-    roi = image[y:h + padding, x:w + padding]
-    #print("ROI: {}".format(roi))
-    # resize the ROI to the desired destination size
-    # It is important to resize the roi in order to keep the final feature vector the same size    
-    roi = cv2.resize(roi, dstSize, interpolation=cv2.INTER_AREA)
-
-    # return the ROI
-    return roi
-
-def pyramid(image, scale=1.5, minSize=(30, 30)):
-    # yield the original image
-    yield image
-
-    # keep looping over the pyramid
-    while True:
-        # compute the new dimensions of the image and resize it
-        w = int(image.shape[1] / scale)
-        h = int(image.shape[0] / scale)        
-        #image = imutils.resize(image, width=w)
-        image = cv2.resize(image, (w,h))
-
-        # if the resized image does not meet the supplied minimum
-        # size, then stop constructing the pyramid
-        if image.shape[0] < minSize[1] or image.shape[1] < minSize[0]:
-            break
-
-        # yield the next image in the pyramid
-        yield image
-
-def sliding_window(image, stepSize, windowSize):
-    # slide a window across the image
-    for y in range(0, image.shape[0], stepSize):
-        for x in range(0, image.shape[1], stepSize):
-            # yield the current window
-            #print("X: {}".format(x))
-            #print("Y: {}".format(y))
-            #print("Window Shape Check: {}".format(image.shape[:2]))
-            yield (x, y, image[y:y + windowSize[1], x:x + windowSize[0]])
+from __future__ import print_function
+from skimage import feature, exposure
+##from skimage import exposure
+import numpy as np
+import h5py
+import simplejson as json
+##from sklearn.feature_extraction.image import extract_patches_2d
+##import argparse
+import random
+import os
+from scipy import io
+from lxml import etree
+import math
+import glob
+import matplotlib.pyplot as plt
+from multiprocessing import Process,Queue
+import cv2
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report
+import sklearn
+from sklearn.svm import LinearSVC 
+import _pickle as cPickle
+import time
+sklearn_version =sklearn.__version__;
+if sklearn_version =="0.17.1":
+    ##from sklearn.cross_validation import train_test_split
+    from sklearn.grid_search import GridSearchCV #for Scikit-learn < 2.0
+else: # assumes a later version
+    from sklearn.model_selection import GridSearchCV # For Scikit-learn 2.0
 
 
-# In[ ]:
-
+# *** CLASSES ***
 class ObjectDetector:
     def __init__(self, model, desc):
         # store the classifier and HOG descriptor
@@ -309,25 +185,110 @@ class ObjectDetector:
         
         
         return keepscale,keeplayer 
+    # *** Code for parallel processing of each window for a given layer ***    
+    def start_detection_mp(self,image,winDim, minSize,  winStep=4, pyramidScale=1.5, minProb=0.7):
+        boxes=[]
+        probs=[]
+        (keepscale,keeplayer)=self.CalculateNumberOfScales(image,pyramidScale,minSize)
+        print("There are {} scales in this image.".format(len(keepscale)))
+        for i in range(0,len(keepscale)):
+            print("Working on layer {0:4d}. Scale {1:.2f}".format(i,keepscale[i]))
+            (b,p)=self.detect_single_layer_mp(keeplayer[i],keepscale[i],winStep,winDim,minProb)
+            boxes =boxes + b
+            probs =probs + p
 
-    def detect_single_layer_mp(self,layer,winStep,winDim):
+        return(boxes,probs)
+
+    def detect_single_layer_mp(self,layer,scale,winStep,winDim,minProb):
         q=[]
         p=[]
-        for (x, y, window) in sliding_window(layer, winStep, winDim):
-            q.append(Queue)
-            p.append(Process(target=self.ff,args=(q[i],w,y,window)))
+        d=[]
+        i=0
+        boxes=[]
+        probs=[]
+        xx, yy, windows= sliding_window_return(layer, winStep, winDim)
+        #print("Window Shape")
+        #print(len(windows))
+        #print("x: {}  y: {}".format(xx,yy))
+        # process in chunks of 4 (for four processors)
+        NumOfProcessors=7;
+        print("There are {} windows for this layer. It will take {} processor loops to complete".format(len(windows),math.floor(len(windows)/NumOfProcessors)))
+        NumberOfChuncks=math.floor(len(xx)/4)
+        for aa in range(0,len(xx)-1,4):
+            for ii in range(0,NumOfProcessors):
+                ##print("aa: {}  ii: {}".format(aa,ii))
+                x=xx[aa]
+                y=yy[aa]
+                window=windows[aa]
+                q.append(Queue())
+                p.append(Process(target=self.ff,args=(q[ii],x,y,window,scale, minProb)))
+            
+            for pp in p:
+                pp.start()
+                # Expectation is that the next loop will not return until all the joins are finsihed.
+            for pp in p:
+                pp.join(timeout=0)  
+            
+            ##print("Waiting for processes to finish")
+            for pp in p:    
+                while pp.is_alive():
+                    pass
+            
+            for pp in p:
+                #print("Process {} is finished!".format(pp))
+                pass
 
-        for each pp in p:
-            pp.start()
-            pp.join()
+                       
+            #print("Joins are complete for processes {}".format(p))
+            
 
-        for k in range(0,len(p)):
-            print("Collecting results from process {}".format(k))
-            d.append(q[k].get()) # Should return (data,labels)
-            boxes = boxes + d[k][0] # Concatonate list
-            probs = probs + d[k][1]
+            for qq in q:
+                d=qq.get()
+                boxes = boxes + d[0]
+                probs = probs + d[1]
 
+            p=[]  # Clear Processes    
+            p=[]
+            q=[]   
+            #for k in range(0,len(p)):
+                #print("Collecting results from process {}".format(k))
+                #d.append(q[k].get()) # Should return (data,labels)
+                #boxes = boxes + d[k][0] # Concatonate list
+                #probs = probs + d[k][1]
+            #print("Finsihed with block group aa {}".format(aa))
+            #print("There are {} Boxes.".format(len(boxes)))
+        return(boxes,probs)
 
+    def ff(self,q,x,y,window,scale,minProb):
+        self.processID = os.getpid()
+        boxes=[]
+        probs=[]
+        #print("*** [INFO] ProcessID: {0:7d} window shape: {1} ***".format(self.processID,window.shape))
+        (winH, winW) = window.shape[:2]
+        if winW == 128 and winH ==72:
+            features = self.desc.describe(window).reshape(1, -1)
+            #print("Object Detector Feature Size: {}".format(features.shape))
+            prob = self.model.predict_proba(features)[0][1]
+            #if counter ==1 or counter % 5000 ==0:
+                #print("[INFO] Model Probability: {}  Loop: {}   KeyPoint Top Left Corner (x,y) {}".format(prob, counter,[x,y]))
+                #print("[INFO] ProcessID: {0:7d} Probability: {1:.3f}  Loop: {2:8d}".format(self.processID,prob,counter))
+                # check to see if the classifier has found an object with sufficient
+                # probability
+            if prob > minProb:
+                print("*** [INFO] ProcessID: {0:7d} Probability: {1:.3f}  Scale {2:.3f} ***".format(self.processID,prob,scale))
+                ##print("[INFO] ********** Found a candidate! **************")
+                # compute the (x, y)-coordinates of the bounding box using the current
+                # scale of the image pyramid
+                (startX, startY) = (int(scale * x), int(scale * y))
+                endX = int(startX + (scale * winW))
+                endY = int(startY + (scale * winH))
+
+                # update the list of bounding boxes and probabilities
+                boxes.append((startX, startY, endX, endY))
+                probs.append(prob)
+        q.put([boxes,probs])
+
+    # *** Code for parallel processing of each layer ***
     def StartDection_MultiProcess(self,image,winDim, minSize,  winStep=4, pyramidScale=1.5, minProb=0.7):
         q=[]    # Queue List
         p=[]    # Process List
@@ -430,71 +391,180 @@ class ObjectDetector:
         # return a tuple of the bounding boxes and probabilities
         return (boxes, probs)
 
+class HOG:
+    def __init__(self, orientations=12, pixelsPerCell=(4, 4), cellsPerBlock=(2, 2), normalize=True):
+        # store the number of orientations, pixels per cell, cells per block, and
+        # whether normalization should be applied to the image
+        self.orientations = orientations
+        self.pixelsPerCell = pixelsPerCell
+        self.cellsPerBlock = cellsPerBlock
+        self.normalize = normalize
+        print("HOG configured for Orientations: {}, PixelsPerCell: {}, CellsPerBlock {}, Normalize: {}".format(orientations,
+            pixelsPerCell,cellsPerBlock,normalize))
+        # Pre-calculate feature vector size
 
-    def ff(self,x,y,window):
-        boxes=[]
-        probs=[]
-        features = self.desc.describe(window).reshape(1, -1)
-        #print("Object Detector Feature Size: {}".format(features.shape))
-        prob = self.model.predict_proba(features)[0][1]
-            if counter ==1 or counter % 5000 ==0:
-                #print("[INFO] Model Probability: {}  Loop: {}   KeyPoint Top Left Corner (x,y) {}".format(prob, counter,[x,y]))
-                print("[INFO] ProcessID: {0:7d} Probability: {1:.3f}  Loop: {2:8d}".format(self.processID,prob,counter))
-                # check to see if the classifier has found an object with sufficient
-                # probability
-                if prob > minProb:
-                    print("*** [INFO] ProcessID: {0:7d} Probability: {1:.3f}  Loop: {2:8d} scale: {3:.2f} ***".format(self.processID,prob,counter,scale))
-                    ##print("[INFO] ********** Found a candidate! **************")
-                    # compute the (x, y)-coordinates of the bounding box using the current
-                    # scale of the image pyramid
-                    (startX, startY) = (int(scale * x), int(scale * y))
-                    endX = int(startX + (scale * winW))
-                    endY = int(startY + (scale * winH))
+    def describe(self, image):
+        # compute Histogram of Oriented Gradients features
+        # To return the hogImage, Visualize needs to be set tot True. 
+        # Use describe_and_return_HOGImage() instead
+        #hist,hogImage = feature.hog(image, orientations=self.orientations, pixels_per_cell=self.pixelsPerCell,
+            #cells_per_block=self.cellsPerBlock, transform_sqrt=self.normalize, visualize=True, block_norm ='L2')
+        hist = feature.hog(image, orientations=self.orientations, pixels_per_cell=self.pixelsPerCell,
+            cells_per_block=self.cellsPerBlock, transform_sqrt=self.normalize, visualize=False, block_norm ='L2')
+        # Note: Feature size will be number of orientations * number of cells in a block * 
+        # number of scans horizontal * number of scans vertical  (Assumes a stride of 1)
+        #print("hist size")
+        #print(hist.shape)
+        hist[hist < 0] = 0
+        #imsize=image.shape
+        #print(imsize)
+        #numberofscansheight=math.floor(imsize[0]/self.pixelsPerCell[0])-1
+        #print("Number of Vertical Scans: ")
+        #print(numberofscansheight)
 
-                    # update the list of bounding boxes and probabilities
-                    boxes.append((startX, startY, endX, endY))
-                    probs.append(prob)
-        return (boxes,probs)
+        #numberofscanswidth=math.floor(imsize[1]/self.pixelsPerCell[1])-1
+        #print("Number of Horizontal Scans: ")
+        #print(numberofscanswidth)
 
-# In[ ]:
+        #numFeaturesPerBlock = self.orientations *self.cellsPerBlock[0]*self.cellsPerBlock[1]
+        #print("Number of features per block")
+        #print(numFeaturesPerBlock)
 
+        #featureLength = numberofscansheight*numberofscanswidth*numFeaturesPerBlock
+        #print("Number of features")
+        #print(featureLength)
+
+        
+
+        #self.plot_hog(image,hogImage)
+        # return the histogram
+        return hist
+
+    def describe_and_return_HOGImage(self, image):
+        # compute Histogram of Oriented Gradients features
+        (hist,hogImage) = feature.hog(image, orientations=self.orientations, pixels_per_cell=self.pixelsPerCell,
+            cells_per_block=self.cellsPerBlock, transform_sqrt=self.normalize, visualize=True)
+        hist[hist < 0] = 0
+        self.plot_hog(image,hogImage)
+        # return the histogram
+        return hist,hogImage
     
-    def run_multiple_processes_using_lists(f,conf,SW,numProcesses=4):
-        #numProcesses =5 # Number of processes
-        # Function f needs to contain a q.put([]) statement to return the output
-        q=[]    # Queue List
-        p=[]    # Process List
-        d=[]    # Output List
-        datalist=[]
-        labellist=[]
-        for i in range(0,numProcesses-1):
-            q.append(Queue())
-            p.append(Process(target=f,args=(q[i],conf,SW))) 
+    def plot_hog(self,image,hog_image):
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), sharex=True, sharey=True)
+        ax1.axis('off')
+        ax1.imshow(image, cmap=plt.cm.gray)
+        ax1.set_title('Input image')
 
+        # Rescale histogram for better display
+        hog_image_rescaled = exposure.rescale_intensity(hog_image, in_range=(0, 10))
+        ax2.axis('off')
+        ax2.imshow(hog_image_rescaled, cmap=plt.cm.gray)
+        ax2.set_title('Histogram of Oriented Gradients')
+        plt.show()   
+
+class Conf:
+    def __init__(self, confPath):
+        # load and store the configuration and update the object's dictionary
+        conf = json.loads(open(confPath).read())
+        self.__dict__.update(conf)
+
+    def __getitem__(self, k):
+        # return the value associated with the supplied key
+        return self.__dict__.get(k, None)
+
+
+
+# *** Stand Alone METHODS***
+def crop_ct101_bb(image, bb, padding=10, dstSize=(32, 32)):
+    # unpack the bounding box, extract the ROI from the image, while taking into account
+    # the supplied offset
+    (y, h, x, w) = bb # Looks like this is y1,y2,x1,x2
+    #print("y,h,x,w ={} {} {} {}".format(y,h,x,w))
+    (x, y) = (max(x - padding, 0), max(y - padding, 0))
+    roi = image[y:h + padding, x:w + padding]
+    #print("ROI: {}".format(roi))
+    # resize the ROI to the desired destination size
+    # It is important to resize the roi in order to keep the final feature vector the same size    
+    roi = cv2.resize(roi, dstSize, interpolation=cv2.INTER_AREA)
+
+    # return the ROI
+    return roi
+
+def pyramid(image, scale=1.5, minSize=(30, 30)):
+    # yield the original image
+    yield image
+
+    # keep looping over the pyramid
+    while True:
+        # compute the new dimensions of the image and resize it
+        w = int(image.shape[1] / scale)
+        h = int(image.shape[0] / scale)        
+        #image = imutils.resize(image, width=w)
+        image = cv2.resize(image, (w,h))
+
+        # if the resized image does not meet the supplied minimum
+        # size, then stop constructing the pyramid
+        if image.shape[0] < minSize[1] or image.shape[1] < minSize[0]:
+            break
+
+        # yield the next image in the pyramid
+        yield image
+
+def sliding_window(image, stepSize, windowSize):
+    # slide a window across the image
+    for y in range(0, image.shape[0], stepSize):
+        for x in range(0, image.shape[1], stepSize):
+            # yield the current window
+            #print("X: {}".format(x))
+            #print("Y: {}".format(y))
+            #print("Window Shape Check: {}".format(image.shape[:2]))
+            yield (x, y, image[y:y + windowSize[1], x:x + windowSize[0]])
+
+def sliding_window_return(image, stepSize, windowSize):
+    # slide a window across the image
+    xx=[]
+    yy=[]
+    windows=[]
+    for y in range(0, image.shape[0], stepSize):
+        for x in range(0, image.shape[1], stepSize):
+            xx.append(x)
+            yy.append(y)
+            windows.append(image[y:y + windowSize[1], x:x + windowSize[0]])
+    return(xx, yy, windows)
+    
+def run_multiple_processes_using_lists(f,conf,SW,numProcesses=4):
+    #numProcesses =5 # Number of processes
+    # Function f needs to contain a q.put([]) statement to return the output
+    q=[]    # Queue List
+    p=[]    # Process List
+    d=[]    # Output List
+    datalist=[]
+    labellist=[]
+    for i in range(0,numProcesses-1):
+        q.append(Queue())
+        p.append(Process(target=f,args=(q[i],conf,SW))) 
     #print("*** Queue List ***")
     #print(q)
     #print("*** Process List ***")
     #print(p)
     
-        print("Start All Processes ...")
-        for j in range(0,numProcesses-1):
-            pp=p[j]
-            pp.start()
-            pp.join()
+    print("Start All Processes ...")
+    for j in range(0,numProcesses-1):
+        pp=p[j]
+        pp.start()
+        pp.join()
     
-        print("Collecting Results")
-        for k in range(0,numProcesses-1):
-            d.append(q[k].get()) # Should return (data,labels)
-            datalist = datalist + d[k][0] # Concatonate list
-            labellist=labellist + d[k][1]
+    print("Collecting Results")
+    for k in range(0,numProcesses-1):
+        d.append(q[k].get()) # Should return (data,labels)
+        datalist = datalist + d[k][0] # Concatonate list
+        labellist=labellist + d[k][1]
     
-        return(datalist,labellist)
+    return(datalist,labellist)
     #print("Verify Output")
     #print(d[0]) # Print the first item in the returned list
     #for l in range(0,numProcesses-1):
     #    print(type(d[l]))
-
-# In[ ]:
 
 def non_max_suppression(boxes, probs, overlapThresh):
     # if there are no boxes, return an empty list
@@ -550,9 +620,6 @@ def non_max_suppression(boxes, probs, overlapThresh):
     # return only the bounding boxes that were picked
     return boxes[pick].astype("int")
 
-
-# In[ ]:
-
 def dump_dataset(data, labels, path, datasetName, writeMethod="w"):
     # open the database, create the dataset, write the data and labels to dataset,
     # and then close the database
@@ -571,22 +638,6 @@ def load_dataset(path, datasetName):
     #list(db.keys())
     # return a tuple of the data and labels
     return (data, labels)
-
-
-# In[ ]:
-
-class Conf:
-    def __init__(self, confPath):
-        # load and store the configuration and update the object's dictionary
-        conf = json.loads(open(confPath).read())
-        self.__dict__.update(conf)
-
-    def __getitem__(self, k):
-        # return the value associated with the supplied key
-        return self.__dict__.get(k, None)
-
-
-# In[ ]:
 
 def import_with_Matlab(conf,hog,SW):
     data = []   
@@ -627,8 +678,6 @@ def import_with_Matlab(conf,hog,SW):
         # update the progress bar
         #    pbar.update(i)
     return  data,labels
-
-
 
 def import_from_XML(conf,hog,SW):
     data = []   
@@ -715,7 +764,6 @@ def import_from_folder(folderpath,conf,hog,SW,label):
         labels.append(label)
         
     return  data,labels    
-# In[ ]:
 
 def GetAvgDimensions(conf):
     doc = etree.parse(conf["image_dataset_XML"])
@@ -751,11 +799,6 @@ def GetAvgDimensions(conf):
     print("[INFO] The recommended Sliding Window Size is W:{}  H:{}".format(newW,newH))
     print("[INFO] Sliding Window Aspect Ratio {:.2f}".format(newW / newH))
     return tuple([newW,newH])
-
-
-# In[ ]:
-
-
 
 def train_model(conf,useHardNegatives):
     # load the configuration file and the initial dataset
@@ -804,18 +847,17 @@ def test_model(hog,conf,image_Filename,SW):
     print("Testing image {}".format(image_Filename))
     if w> h : #Landscape mode
         print("Skpping")
-#        print("Shape before resize")
-#        print(image.shape)
-#        print("[INFO] The image is in landscape mode")
-#        minWidth=min(int(conf["max_image_width"]), w)  # 1 ==> Columns
-#        newHeight=math.floor(h/w*minWidth)
-#        image = cv2.resize(image, (minWidth,newHeight))
-        
+    #        print("Shape before resize")
+    #        print(image.shape)
+    #        print("[INFO] The image is in landscape mode")
+    #        minWidth=min(int(conf["max_image_width"]), w)  # 1 ==> Columns
+    #        newHeight=math.floor(h/w*minWidth)
+    #        image = cv2.resize(image, (minWidth,newHeight))
     else: # Portriat Mode
         print("[INFO] The image is in portrait mode")
         minHeight=min(int(conf["max_image_width"]), h) # 0 ==> Rows
         newWidth =math.floor(w/h*minHeight)
-        image = cv2.resize(image, (newWidth,minHeight))`
+        image = cv2.resize(image, (newWidth,minHeight))
         print("Shape after resize:")
         print(image.shape)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -836,12 +878,16 @@ def test_model(hog,conf,image_Filename,SW):
         # detect objects in the image and apply non-maxima suppression to the bounding boxes
         print("Detecting the object")
         #winDim=conf["sliding_window_dim"]
-        winDim=SW # Recall, the sliding window dimensions are computed.
+        winDim=SW # Recall, the sliding window dimensions are computed. (w,h Opposite shape command)
         minSize=SW
+        PPC=conf["pixels_per_cell"]
         winStep=conf["window_step"]
+        winStep=PPC[0]
+        maxImageWidth=math.floor(SW[0]/PPC[0])*PPC[0]*4 # scale the image to be 4 time integer multiple of scanning window width
         pyramidScale=conf["pyramid_scale"]
         minProb=conf["min_probability"]
-        (boxes, probs) = od.StartDection_MultiProcess(gray,winDim, minSize,  winStep, pyramidScale, minProb)
+        #(boxes, probs) = od.StartDection_MultiProcess(gray,winDim, minSize,  winStep, pyramidScale, minProb)
+        (boxes, probs) = od.start_detection_mp(gray,winDim, minSize,  winStep, pyramidScale, minProb)
         pick = non_max_suppression(np.array(boxes), probs, conf["overlap_thresh"])
         orig = image.copy()
         print("Finished detecting the object")  
@@ -875,8 +921,6 @@ def test_model(hog,conf,image_Filename,SW):
         print("Saving: {}".format(resultsimagepath))
         cv2.imwrite(resultsimagepath, image );
         pause(5) #Pause 5 seconds before the next image.
-
-# In[ ]:
 
 def Hard_Negative_Mining(conf,SW):
     data = []
@@ -940,10 +984,6 @@ def Hard_Negative_Mining(conf,SW):
     ###data = np.array(data)
     ###data = data[data[:, 0].argsort()[::-1]]
 
-
-
-# In[ ]:
-
 def AppendDataToFile(conf,data,labels):
     # dump the dataset to file
     print("[INFO] dumping hard negatives to file...")
@@ -954,12 +994,6 @@ def AppendDataToFile(conf,data,labels):
     else: 
         print("No Hard-Negatives were found in the images provided")
 
-
-# # Begin HOG Feature Extraction for Positive images and Negative images
-
-# ## Begin HOG feature extraction of Positive Images
-
-# In[ ]:
 def initialize_hog(conf):
     hog = HOG(orientations=conf["orientations"], pixelsPerCell=tuple(conf["pixels_per_cell"]), 
           cellsPerBlock=tuple(conf["cells_per_block"]), normalize=conf["normalize"])
@@ -1039,15 +1073,6 @@ def BeginHogFeatureExtraction(hog,conf,SW,MyFlag=0):
     dump_dataset(data, labels, MyFeaturePath, "features")
     return hog
 
-# ## Begin HOG feature extraction of Negative Images
-
-# ## Begin Training SVM using saved HOG feature vectors
-
-# The 'C' parameter for the SVM measures how 'strict' SVM is. Larger values indicate a tolerance for fewer mistakes. While this can lead to higher accuracy on the training data, it could lead to overfitting. Smaller values lead to a 'soft-classifier'. Initially, we let it make many mistakes knowing downstream, hard negative mining will help rectify many of these mistakes.
-
-# In[ ]:
-
-
 def f(q,conf,SW,scale):
     print('parent process:', os.getppid())
     print('process id:', os.getpid())  
@@ -1055,10 +1080,6 @@ def f(q,conf,SW,scale):
     print(data.shape)
     q.put([data,labels])
 
-
-# In[ ]:
-
-#from multiprocessing import Process,Queue
 def run_multiple_processes_using_lists(f,conf,SW,numProcesses=4):
     #numProcesses =5 # Number of processes
     # Function f needs to contain a q.put([]) statement to return the output
@@ -1071,10 +1092,10 @@ def run_multiple_processes_using_lists(f,conf,SW,numProcesses=4):
         q.append(Queue())
         p.append(Process(target=f,args=(q[i],conf,SW))) 
 
-#print("*** Queue List ***")
-#print(q)
-#print("*** Process List ***")
-#print(p)
+    #print("*** Queue List ***")
+    #print(q)
+    #print("*** Process List ***")
+    #print(p)
 
     print("Start All Processes ...")
     for j in range(0,numProcesses-1):

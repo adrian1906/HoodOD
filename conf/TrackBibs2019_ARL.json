@@ -27,7 +27,7 @@
 	"max_hog_window_size": 128,
 
 	"_comment4": "OBJECT DETECTOR",
-	"window_step": 4,
+	"window_step": 16,
 	"overlap_thresh": 0.3,
 	"pyramid_scale": 1.414213562,
 	"sliding_window_dim_NOTUSED": [96, 32],
