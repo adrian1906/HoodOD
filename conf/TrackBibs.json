@@ -1,0 +1,55 @@
+{
+	"MasterComment": "JSON does not have a comment feature. Comments are treated as data",
+	
+	"_comment1": "Dataset",
+	"image_dataset_old": "M:\\DataSets\\SprintPhotos_Small",
+	"image_dataset": "M:\\DataSets\\2016_USATF_Sprint_TrainingDataset",
+	"image_dataset_XML_old": "M:\\DataSets\\SprintPhotos_Small\\sprints.xml",
+	"image_dataset_XML": "M:\\DataSets\\2016_USATF_Sprint_TrainingDataset\\sprints_large.xml",
+	"image_annotations": "M:\\DataSets\\SprintPhotos_Small",
+	"image_distractions": "M:\\DataSets\\Caltech256\\256_ObjectCategories\\013.birdbath",
+	"image_distractions1": "M:\\DataSets\\Caltech256\\256_ObjectCategories\\013.birdbath",
+	"image_distractions2": "M:\\DataSets\\Caltech256\\256_ObjectCategories\\012.binoculars",
+	"image_distractions3": "M:\\DataSets\\Caltech256\\256_ObjectCategories\\028.camel",
+	"image_distractions4": "M:\\DataSets\\Caltech256\\256_ObjectCategories\\034.centipede",
+
+	"_comment2": "Feature Extraction",
+	"features_path_old": "M:\\DataSets\\SprintPhotos_Small\\SprintBibPhotos2.hdf5",
+	"features_path": "M:\\DataSets\\2016_USATF_Sprint_TrainingDataset\\SprintBibPhotosLarge2.hdf5",
+	"percent_gt_images": 0.5,
+	"offset_padding": 5,
+	"use_flip": false,
+	"num_distraction_images": 500,
+	"num_distractions_per_image": 10,
+
+	"comment3": "HISTOGRAM OF ORIENTED GRADIENTS DESCRIPTOR",
+	"orientations": 9,
+	"pixels_per_cell": [4, 4],
+	"cells_per_block": [2, 2],
+	"normalize": true,
+
+	"_comment4": "OBJECT DETECTOR",
+	"window_step": 4,
+	"overlap_thresh": 0.3,
+	"pyramid_scale": 1.5,
+	"sliding_window_dim_NOTUSED": [96, 32],
+	"image_resized": [96, 32],
+	"min_probability": 0.92,
+	"max_image_width": 400,
+
+	"_comment5": "LINEAR SVM",
+	"classifier_path_old": "M:\\DataSets\\SprintPhotos_Small\\svm_model.cpickle",
+	"classifier_path": "M:\\DataSets\\2016_USATF_Sprint_TrainingDataset\\svm_model2.cpickle",
+	"C": 0.01,
+
+	"_comment8": "Negative Images",
+	"num_distraction_images": 50,
+	
+	"_comment7": "HARD NEGATIVE MINING",
+	"_comment7b": "Hard Negative Mining takes a long time for each image. For each image, many patches are HOG Filtered, assessed, and if false positive, added to the negative image set",
+	"hn_num_distraction_images": 10,
+	"num_distractions_per_image_NotUsed": 1,
+	"hn_window_step": 4,
+	"hn_pyramid_scale": 1.5,
+	"hn_min_probability": 0.51
+}

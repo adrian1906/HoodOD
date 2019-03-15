@@ -1,0 +1,54 @@
+{
+	"MasterComment": "JSON does not have a comment feature. Comments are treated as data",
+	
+	"_comment1": "Dataset",
+	"image_dataset": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/",
+	"cropped_image_dataset": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/Extracted_Objects/Bib/",
+	"image_dataset_XML": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/SprintBibsAndNegs_Final.xml",
+	"image_annotations": "M:\\DataSets\\SprintPhotos_Small",
+	"image_distractions": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/Extracted_Objects/Negative/",
+	"cropped_image_distractions": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/Extracted_Objects/Negative/",
+	"test_files": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/",
+    "image_results_folder": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/Results/",
+
+	"_comment2": "Feature Extraction suffix: pixels_per_cell,cells_per_block,max_image_height,max_image_height",
+	"features_path": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/SprintBibPhotosLarge_ARL_16_1_128_800.hdf5",
+	"percent_gt_images": 0.5,
+	"offset_padding": 5,
+	"use_flip": false,
+	"num_distraction_images": 500,
+	"num_distractions_per_image": 10,
+
+	"comment3": "HISTOGRAM OF ORIENTED GRADIENTS DESCRIPTOR",
+	"orientations": 9,
+	"pixels_per_cell": [16, 16],
+	"cells_per_block": [1, 1],
+	"normalize": true,
+	"max_hog_window_size": 128,
+
+	"_comment4": "OBJECT DETECTOR",
+	"window_step": 4,
+	"overlap_thresh": 0.3,
+	"pyramid_scale": 1.414213562,
+	"sliding_window_dim_NOTUSED": [96, 32],
+	"image_resized": [96, 32],
+	"min_probability": 0.96,
+	"comment8":" This width should be 4 or 5 times max hog windows width",
+	"max_image_width": 800,
+	"max_image_height": 800,
+
+	"_comment5": "LINEAR SVM suffix: pixels_per_cell,cells_per_block,max_image_height,max_image_height",
+	"classifier_path": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/svm_model_ARL_16_1_128_800.cpickle",
+	"C": 0.01,
+
+	"_comment8": "Negative Images",
+	"num_distraction_images": 1500,
+	
+	"_comment7": "HARD NEGATIVE MINING",
+	"_comment7b": "Hard Negative Mining takes a long time for each image. For each image, many patches are HOG Filtered, assessed, and if false positive, added to the negative image set",
+	"hn_num_distraction_images": 1,
+	"num_distractions_per_image_NotUsed": 1,
+	"hn_window_step": 4,
+	"hn_pyramid_scale": 1.5,
+	"hn_min_probability": 0.51
+}
