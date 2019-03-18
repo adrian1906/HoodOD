@@ -221,7 +221,7 @@ class ObjectDetector:
                 y=yy[aa]
                 window=windows[aa]
                 q.append(Queue())
-                p.append(Process(target=self.ff,args=(q[ii],x,y,window,scale, minProb)))
+                p.append(Process(target=self.ff,args=(q[ii],x,y,window,scale, minProb,winDim)))
             
             for pp in p:
                 pp.start()
@@ -259,13 +259,14 @@ class ObjectDetector:
             #print("There are {} Boxes.".format(len(boxes)))
         return(boxes,probs)
 
-    def ff(self,q,x,y,window,scale,minProb):
+    def ff(self,q,x,y,window,scale,minProb,winDim):
         self.processID = os.getpid()
         boxes=[]
         probs=[]
         #print("*** [INFO] ProcessID: {0:7d} window shape: {1} ***".format(self.processID,window.shape))
         (winH, winW) = window.shape[:2]
-        if winW == 128 and winH ==72:
+        if winW == winDim[0] and winH ==winDim[1]: # Check that window dimension is correct ('I've noticed that some are off by a factor of 2.. TODO: Figure out.)
+            #if winW >0 and winH >0:    
             features = self.desc.describe(window).reshape(1, -1)
             #print("Object Detector Feature Size: {}".format(features.shape))
             prob = self.model.predict_proba(features)[0][1]
@@ -522,6 +523,9 @@ def sliding_window(image, stepSize, windowSize):
 
 def sliding_window_return(image, stepSize, windowSize):
     # slide a window across the image
+    #cv2.imshow("Image", image)
+    #cv2.waitKey(0) 
+    
     xx=[]
     yy=[]
     windows=[]
@@ -766,6 +770,7 @@ def import_from_folder(folderpath,conf,hog,SW,label):
     return  data,labels    
 
 def GetAvgDimensions(conf):
+    # Returns W,H in that order.
     doc = etree.parse(conf["image_dataset_XML"])
     MyXML=doc.find("images")
     widths = []
@@ -778,18 +783,22 @@ def GetAvgDimensions(conf):
     (avgWidth, avgHeight) = (np.mean(widths), np.mean(heights))
     (stdW,stdH)=(np.std(widths),np.std(heights))
     #print("The length of widths is {}".format(len(widths)))
-    newW=math.ceil(int(avgWidth/2)/4)*4
-    newH=math.ceil(int(avgHeight/2)/4)*4
+    pixelsPerCell=conf["pixels_per_cell"]
+    PPCx = pixelsPerCell[0]
+    PPCy = pixelsPerCell[1]
+    newW=math.ceil(int(avgWidth/2)/PPCx)*PPCx
+    newH=math.ceil(int(avgHeight/2)/PPCy)*PPCy
+    print("Value prior to scaling: newW {}  newH {}".format(newW,newH))
     AR=newW / newH
     mhws=conf["max_hog_window_size"]
     if newW>newH: # Width will govern overall size
         if newW>mhws:
             newW=mhws
-            newH=math.floor(newW/AR)
+            newH=round((newW/AR)/PPCy)*PPCy
     else:
         if newH > mhws:
             newH=mhws
-            newW=math.floor(AR*newH)
+            newW=round(AR*newH/PPCx)*PPCx
 
         
 
@@ -844,83 +853,98 @@ def test_model(hog,conf,image_Filename,SW):
     #image = cv2.resize(image, width=min(260, image.shape[1]))
     
     h,w,d=image.shape
-    print("Testing image {}".format(image_Filename))
-    if w> h : #Landscape mode
-        print("Skpping")
-    #        print("Shape before resize")
-    #        print(image.shape)
+    print("Testing image: {}  Original shape: {}".format(image_Filename,(h,w)))
+    # Note span reflect # of SW that can fit into the window
+    # TODO: add to hyperparameter JSON File
+    pixelsPerCell=tuple(conf["pixels_per_cell"])
+    span =5
+    (objectsize_H,objectsize_W) = calculate_optimal_image_size(pixelsPerCell,SW,span)
+    print("Sliding Window Width: {}  Height: {}".format(SW[0],SW[1]))
+    if SW[0]>SW[1]: # Wide
+        (newHeight,newWidth) =rescaleImage(image, objectsize_W,"L")
+    else:
+        (newHeight,newWidth) =rescaleImage(image, objectsize_H,"P")
+    #if w> h : #Landscape mode
+    #    print("Skpping")
+
     #        print("[INFO] The image is in landscape mode")
     #        minWidth=min(int(conf["max_image_width"]), w)  # 1 ==> Columns
     #        newHeight=math.floor(h/w*minWidth)
     #        image = cv2.resize(image, (minWidth,newHeight))
-    else: # Portriat Mode
-        print("[INFO] The image is in portrait mode")
-        minHeight=min(int(conf["max_image_width"]), h) # 0 ==> Rows
-        newWidth =math.floor(w/h*minHeight)
-        image = cv2.resize(image, (newWidth,minHeight))
-        print("Shape after resize:")
-        print(image.shape)
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        #print("Image size: {}".format(gray.shape))
-        pfile=conf["classifier_path"]
-        with open(pfile, 'rb') as f:
-            model = cPickle.load(f, encoding='bytes')
-        f.close()
-      
-        #hog = HOG(orientations=conf["orientations"], pixelsPerCell=tuple(conf["pixels_per_cell"]), 
-        #      cellsPerBlock=tuple(conf["cells_per_block"]), normalize=conf["normalize"])
-        #print(hog)
-       
-        od = ObjectDetector(model, hog)
+    #else: # Portriat Mode
+    #    print("[INFO] The image is in portrait mode")
+    #    minHeight=min(int(conf["max_image_width"]), h) # 0 ==> Rows
+    #    newWidth =math.floor(w/h*minHeight)
+    #print("Shape before resize")
+    #print(image.shape)
+    image = cv2.resize(image, (newWidth,newHeight))
+    #print("Shape after resize:")
+    #print(image.shape)
+    print("Shape before: {}  Shape after {}".format((h,w),image.shape[0:2]))
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    pfile=conf["classifier_path"]
+
+    # LOAD THE MODEL
+    with open(pfile, 'rb') as f:
+        model = cPickle.load(f, encoding='bytes')
+    f.close()
+  
+    #hog = HOG(orientations=conf["orientations"], pixelsPerCell=tuple(conf["pixels_per_cell"]), 
+    #      cellsPerBlock=tuple(conf["cells_per_block"]), normalize=conf["normalize"])
+    #print(hog)
+   
+    od = ObjectDetector(model, hog)
+
+    #print(od)
+
+    # detect objects in the image and apply non-maxima suppression to the bounding boxes
+    print("Detecting the object")
+    #winDim=conf["sliding_window_dim"]
+    winDim=SW # Recall, the sliding window dimensions are computed. (w,h Opposite shape command)
+    minSize=SW
+    # Need to verify that the window_step is a factor of pixelsPerCell (in both directions)
+    winStep=conf["window_step"]
+    pyramidScale=conf["pyramid_scale"]
+    minProb=conf["min_probability"]
+    #PPC=conf["pixels_per_cell"]
+    #winStep=PPC[0]
+    #maxImageWidth=math.floor(SW[0]/PPC[0])*PPC[0]*4 # scale the image to be 4 time integer multiple of scanning window width
+
+    #(boxes, probs) = od.StartDection_MultiProcess(gray,winDim, minSize,  winStep, pyramidScale, minProb)
+    (boxes, probs) = od.start_detection_mp(gray,winDim, minSize,  winStep, pyramidScale, minProb)
+    pick = non_max_suppression(np.array(boxes), probs, conf["overlap_thresh"])
+    orig = image.copy()
+    print("Finished detecting the object")  
+    ##print("boxes: {}".format(boxes))
+
+    if len(boxes) <1 :
+        print("The object was not found")
+    else:
+        # loop over the original bounding boxes and draw them
+        for (startX, startY, endX, endY) in boxes:
+            cv2.rectangle(orig, (startX, startY), (endX, endY), (0, 0, 255), 10)
+
+    # loop over the allowed bounding boxes and draw them
+    for (startX, startY, endX, endY) in pick:
+        cv2.rectangle(image, (startX, startY), (endX, endY), (0, 255, 0), 10)
+
+    # show the output images
+    ##plt.subplot(121),plt.imshow(orig,'gray'),plt.title('Original')
+    ##plt.subplot(122),plt.imshow(image,'gray'),plt.title('Image')
+    ##plt.show()
+    #cv2.imshow("Original", orig)
+    #cv2.imshow("Image", image)
+    #cv2.waitKey(0)
+    end = time.time()
+    duration = end-start
     
-        print(od)
-    
-        # detect objects in the image and apply non-maxima suppression to the bounding boxes
-        print("Detecting the object")
-        #winDim=conf["sliding_window_dim"]
-        winDim=SW # Recall, the sliding window dimensions are computed. (w,h Opposite shape command)
-        minSize=SW
-        PPC=conf["pixels_per_cell"]
-        winStep=conf["window_step"]
-        winStep=PPC[0]
-        maxImageWidth=math.floor(SW[0]/PPC[0])*PPC[0]*4 # scale the image to be 4 time integer multiple of scanning window width
-        pyramidScale=conf["pyramid_scale"]
-        minProb=conf["min_probability"]
-        #(boxes, probs) = od.StartDection_MultiProcess(gray,winDim, minSize,  winStep, pyramidScale, minProb)
-        (boxes, probs) = od.start_detection_mp(gray,winDim, minSize,  winStep, pyramidScale, minProb)
-        pick = non_max_suppression(np.array(boxes), probs, conf["overlap_thresh"])
-        orig = image.copy()
-        print("Finished detecting the object")  
-        ##print("boxes: {}".format(boxes))
-    
-        if len(boxes) <1 :
-            print("The object was not found")
-        else:
-            # loop over the original bounding boxes and draw them
-            for (startX, startY, endX, endY) in boxes:
-                cv2.rectangle(orig, (startX, startY), (endX, endY), (0, 0, 255), 10)
-    
-        # loop over the allowed bounding boxes and draw them
-        for (startX, startY, endX, endY) in pick:
-            cv2.rectangle(image, (startX, startY), (endX, endY), (0, 255, 0), 10)
-    
-        # show the output images
-        ##plt.subplot(121),plt.imshow(orig,'gray'),plt.title('Original')
-        ##plt.subplot(122),plt.imshow(image,'gray'),plt.title('Image')
-        ##plt.show()
-        #cv2.imshow("Original", orig)
-        #cv2.imshow("Image", image)
-        #cv2.waitKey(0)
-        end = time.time()
-        duration = end-start
-        
-        imageresults=conf["image_results_folder"]
-        FN=os.path.split(image_Filename)
-        print("Time taken to process {0}:  {1:.2f} s".format(FN[1],duration))
-        resultsimagepath=imageresults + FN[1]
-        print("Saving: {}".format(resultsimagepath))
-        cv2.imwrite(resultsimagepath, image );
-        pause(5) #Pause 5 seconds before the next image.
+    imageresults=conf["image_results_folder"]
+    FN=os.path.split(image_Filename)
+    print("Time taken to process {0}:  {1:.2f} s".format(FN[1],duration))
+    resultsimagepath=imageresults + FN[1]
+    print("Saving: {}".format(resultsimagepath))
+    cv2.imwrite(resultsimagepath, image );
+    pause(5) #Pause 5 seconds before the next image.
 
 def Hard_Negative_Mining(conf,SW):
     data = []
@@ -1126,3 +1150,47 @@ def pause(timeInSeconds):
     print("Finished waiting {} s.".format(duration))
     
   
+
+def calculate_optimal_image_size(pixelsPerCell,SW,span):
+    # Span is an integer representing how many SW boxes that can span across the image
+    # For example, saw SW is 128x80, then a span of 5 would lock the width to 128 *5 = 640
+    # The height would also scale to 400, so the image dimension would be rescaled to 640x400.
+    PPCx = pixelsPerCell[0]
+    PPCy = pixelsPerCell[1]
+    objectsize_W = round(SW[0]/PPCx)*PPCx*span
+    objectsize_H = round(SW[1]/PPCy)*PPCy*span
+    print("objectsize_H: {}  objectsize_W: {}".format(objectsize_H,objectsize_W))
+    return(objectsize_H,objectsize_W)
+
+def rescaleImage(image, max_dimension, direction):
+    print("Ready to Scale")
+
+    h,w=image.shape[0:2]
+    print("Original h: {}  w: {} ".format(h,w))
+    if direction == "P":
+        print("Portrait Mode")
+        newHeight = max_dimension 
+        newWidth  = round (w/h*newHeight)
+    else:
+        print("Landscape Mode")
+        newWidth = max_dimension
+        newHeight = round(h/w * newWidth)
+    print("newHeight: {}  newWidth: {}".format(newHeight,newWidth))    
+    return (newHeight,newWidth)
+
+
+def plot_sliding_window(image,stepSize,WindowSize,x,y,delayms):
+    h,w = image.shape
+    print("w: {}  h: {}  maxx {}  maxy {}".format(w,h,w-WindowSize[0],h-WindowSize[1]))
+    for i in range(0,len(x)):
+        if x[i]< w-WindowSize[0] and y[i]<h-WindowSize[1]:
+            orig = image.copy()
+            startX=x[i]
+            startY=y[i]
+            endX=startX + WindowSize[0]
+            endY=startY + WindowSize[1]
+            #print("Image shape {}".format(image.shape))
+            #print("Box coordinates {}".format((startX, startY, endX, endY)))
+            cv2.rectangle(orig,(startX, startY), (endX, endY),(0,0,255),3)
+            cv2.imshow("Orig", orig)
+            cv2.waitKey(delayms) 

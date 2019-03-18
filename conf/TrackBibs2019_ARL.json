@@ -8,7 +8,7 @@
 	"image_annotations": "M:\\DataSets\\SprintPhotos_Small",
 	"image_distractions": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/Extracted_Objects/Negative/",
 	"cropped_image_distractions": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/Extracted_Objects/Negative/",
-	"test_files": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/",
+	"test_files": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/ForTesting/",
     "image_results_folder": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/Results/",
 
 	"_comment2": "Feature Extraction suffix: pixels_per_cell,cells_per_block,max_image_height,max_image_height",
@@ -27,11 +27,11 @@
 	"max_hog_window_size": 128,
 
 	"_comment4": "OBJECT DETECTOR",
-	"window_step": 16,
+	"window_step": 8,
 	"overlap_thresh": 0.3,
 	"pyramid_scale": 1.414213562,
 	"sliding_window_dim_NOTUSED": [96, 32],
-	"image_resized": [96, 32],
+	"image_resized_NOTUSED": [96, 32],
 	"min_probability": 0.96,
 	"comment8":" This width should be 4 or 5 times max hog windows width",
 	"max_image_width": 800,
