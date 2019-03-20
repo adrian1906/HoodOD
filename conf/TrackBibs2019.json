@@ -32,7 +32,8 @@
 	"image_resized": [96, 32],
 	"min_probability": 0.97,
 	"max_image_width": 400,
-
+	"span": 5,
+	
 	"_comment5": "LINEAR SVM",
 	"classifier_path_old": "M:\\DataSets\\SprintPhotos_Small\\svm_model.cpickle",
 	"classifier_path": "M:\\DataSets\\2016_USATF_Sprint_TrainingDataset\\svm_model3.cpickle",

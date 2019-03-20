@@ -153,7 +153,8 @@ from lxml import etree
 import math
 import glob
 import matplotlib.pyplot as plt
-from multiprocessing import Process,Queue
+from multiprocessing import Process,Queue,Pool
+from multiprocessing.pool import ThreadPool
 import cv2
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report
@@ -193,13 +194,44 @@ class ObjectDetector:
         print("There are {} scales in this image.".format(len(keepscale)))
         for i in range(0,len(keepscale)):
             print("Working on layer {0:4d}. Scale {1:.2f}".format(i,keepscale[i]))
-            (b,p)=self.detect_single_layer_mp(keeplayer[i],keepscale[i],winStep,winDim,minProb)
+            #(b,p)=self.detect_single_layer_mp(keeplayer[i],keepscale[i],winStep,winDim,minProb)
+            (b,p)=self.detect_single_layer_mt(keeplayer[i],keepscale[i],winStep,winDim,minProb)
             boxes =boxes + b
             probs =probs + p
 
         return(boxes,probs)
 
-    def detect_single_layer_mp(self,layer,scale,winStep,winDim,minProb):
+
+    def detect_single_layer_mt(self,layer,scale,winStep,winDim,minProb):  # Use multiple threads
+        q=[]
+        p=[]
+        boxes=[]
+        probs=[]
+        myArgs=[]
+        #q=Queue(); # Not used
+        xx, yy, windows= sliding_window_return(layer, winStep, winDim)
+        for i in range(0,len(xx)-1):
+            myArgs.append([xx[i],yy[i],windows[i],layer,winStep,winDim,minProb,scale])
+            # myArgs.append(yy)
+            # myArgs.append(windows)
+            # myArgs.append(layer)
+            # myArgs.append(winStep)
+            # myArgs.append(winDim)
+            # myArgs.append(minProb)
+            # myArgs.append(scale)
+        p = Pool(2)
+        pp=list(p.map(self.fff,myArgs))
+        #print(q)
+        #print(pp)
+        #print(p)
+        for ppp in pp:
+                boxes = boxes + ppp[0]
+                probs = probs + ppp[1]
+
+        return(boxes,probs)
+
+
+    def detect_single_layer_mp(self,layer,scale,winStep,winDim,minProb): # Use multiple processors
         q=[]
         p=[]
         d=[]
@@ -220,9 +252,11 @@ class ObjectDetector:
                 x=xx[aa]
                 y=yy[aa]
                 window=windows[aa]
-                q.append(Queue())
-                p.append(Process(target=self.ff,args=(q[ii],x,y,window,scale, minProb,winDim)))
-            
+                #q.append(Queue())
+                q=Queue() # Only need to create one Queue (FIFO buffer) to hold output from each process
+                # when all processes are completed, the buffer will be emptied.
+                #p.append(Process(target=self.ff,args=(q[ii],x,y,window,scale, minProb,winDim)))
+                p.append(Process(target=self.ff,args=(q,x,y,window,scale, minProb,winDim)))
             for pp in p:
                 pp.start()
                 # Expectation is that the next loop will not return until all the joins are finsihed.
@@ -241,11 +275,15 @@ class ObjectDetector:
                        
             #print("Joins are complete for processes {}".format(p))
             
-
-            for qq in q:
-                d=qq.get()
+            while not q.empty():
+                d=q.get()
                 boxes = boxes + d[0]
                 probs = probs + d[1]
+
+            #for qq in q:
+            #    d=qq.get()
+            #    boxes = boxes + d[0]
+            #    probs = probs + d[1]
 
             p=[]  # Clear Processes    
             p=[]
@@ -259,7 +297,39 @@ class ObjectDetector:
             #print("There are {} Boxes.".format(len(boxes)))
         return(boxes,probs)
 
+    
+    def fff(self,myArgs):
+        
+        boxes=[]
+        probs=[]
+        xx=myArgs[0]
+        yy=myArgs[1]
+        window=myArgs[2]
+        layer=myArgs[3]
+        winStep=myArgs[4]
+        winDim=myArgs[5]
+        minProb=myArgs[6]
+        scale=myArgs[7]
+        #print("MyArgs has length {}".format(len(myArgs)))
+        #print("xx: {} yy {} winStep {} winDim {} minProb {}".format(xx,yy,winStep,winDim, minProb))
+        b,p = self.ff(xx,yy,window,scale,minProb,winDim)
+        #while not q.empty():
+        #    print(q.get())
+
+        # #d=q.get()
+        if len(b)>0: # Check for empty
+            print("b: {} p {}".format(b,p))
+            boxes = boxes + b
+            probs = probs + p
+        # #print("Probabilities")    
+        # print(prob)
+        #q.put([boxes,probs])
+        #q.close()
+        #q.join_thread()
+        return(boxes,probs)
+
     def ff(self,q,x,y,window,scale,minProb,winDim):
+        print("Inside ff()")
         self.processID = os.getpid()
         boxes=[]
         probs=[]
@@ -288,6 +358,41 @@ class ObjectDetector:
                 boxes.append((startX, startY, endX, endY))
                 probs.append(prob)
         q.put([boxes,probs])
+        return(boxes,probs)
+
+    def ff(self,x,y,window,scale,minProb,winDim):
+        # Overload version without the Queue
+        #print("Inside ff()")
+        self.processID = os.getpid()
+        boxes=[]
+        probs=[]
+        #print("*** [INFO] ProcessID: {0:7d} window shape: {1} ***".format(self.processID,window.shape))
+        (winH, winW) = window.shape[:2]
+        if winW == winDim[0] and winH ==winDim[1]: # Check that window dimension is correct ('I've noticed that some are off by a factor of 2.. TODO: Figure out.)
+            #if winW >0 and winH >0:    
+            features = self.desc.describe(window).reshape(1, -1)
+            #print("Object Detector Feature Size: {}".format(features.shape))
+            prob = self.model.predict_proba(features)[0][1]
+            #if counter ==1 or counter % 5000 ==0:
+                #print("[INFO] Model Probability: {}  Loop: {}   KeyPoint Top Left Corner (x,y) {}".format(prob, counter,[x,y]))
+                #print("[INFO] ProcessID: {0:7d} Probability: {1:.3f}  Loop: {2:8d}".format(self.processID,prob,counter))
+                # check to see if the classifier has found an object with sufficient
+                # probability
+            if prob > minProb:
+                print("*** [INFO] ProcessID: {0:7d} Probability: {1:.3f}  Scale {2:.3f} ***".format(self.processID,prob,scale))
+                ##print("[INFO] ********** Found a candidate! **************")
+                # compute the (x, y)-coordinates of the bounding box using the current
+                # scale of the image pyramid
+                (startX, startY) = (int(scale * x), int(scale * y))
+                endX = int(startX + (scale * winW))
+                endY = int(startY + (scale * winH))
+
+                # update the list of bounding boxes and probabilities
+                boxes.append((startX, startY, endX, endY))
+                probs.append(prob)
+        #q.put([boxes,probs])
+        return(boxes,probs)
+
 
     # *** Code for parallel processing of each layer ***
     def StartDection_MultiProcess(self,image,winDim, minSize,  winStep=4, pyramidScale=1.5, minProb=0.7):
@@ -857,7 +962,8 @@ def test_model(hog,conf,image_Filename,SW):
     # Note span reflect # of SW that can fit into the window
     # TODO: add to hyperparameter JSON File
     pixelsPerCell=tuple(conf["pixels_per_cell"])
-    span =5
+    #span =5
+    span = int(conf["span"])
     (objectsize_H,objectsize_W) = calculate_optimal_image_size(pixelsPerCell,SW,span)
     print("Sliding Window Width: {}  Height: {}".format(SW[0],SW[1]))
     if SW[0]>SW[1]: # Wide

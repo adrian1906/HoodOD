@@ -12,7 +12,7 @@
     "image_results_folder": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/Results/",
 
 	"_comment2": "Feature Extraction suffix: pixels_per_cell,cells_per_block,max_image_height,max_image_height",
-	"features_path": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/SprintBibPhotosLarge_ARL_16_1_128_800.hdf5",
+	"features_path": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/SprintBibPhotosLarge_ARL_16_2_64_800.hdf5",
 	"percent_gt_images": 0.5,
 	"offset_padding": 5,
 	"use_flip": false,
@@ -34,12 +34,12 @@
 	"image_resized_NOTUSED": [96, 32],
 	"min_probability": 0.96,
 	"comment8":" This width should be 4 or 5 times max hog windows width",
-	"max_image_width": 800,
-	"max_image_height": 800,
+	"max_image_width_NOTUSED": 1800,
+	"max_image_height_NOTUSED": 1800,
 	"span": 8,
 
 	"_comment5": "LINEAR SVM suffix: pixels_per_cell,cells_per_block,max_image_height,max_image_height",
-	"classifier_path": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/svm_model_ARL_16_1_128_800.cpickle",
+	"classifier_path": "/home/HoodML/2016_USATF_Sprint_TrainingDataset/svm_model_ARL_16_2_64_800.cpickle",
 	"C": 0.01,
 
 	"_comment8": "Negative Images",
