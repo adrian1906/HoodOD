@@ -45,8 +45,8 @@ if __name__ == '__main__':
     for i in range(start,stop):
         print("*** Testing Image {} ****".format(i))
         #test_model(hog,conf,TestFiles[random_start+i],SW)
-        test_model(hog,conf,TestFiles[i],SW)
-
+        #test_model(hog,conf,TestFiles[i],SW)
+        test_model_using_DLIB_FaceDetection(hog,conf,TestFiles[i],SW)
 
 # ## Testing Trained Model
 # This step involves

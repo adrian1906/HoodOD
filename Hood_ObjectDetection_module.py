@@ -162,6 +162,7 @@ import sklearn
 from sklearn.svm import LinearSVC 
 import _pickle as cPickle
 import time
+import dlib
 sklearn_version =sklearn.__version__;
 if sklearn_version =="0.17.1":
     ##from sklearn.cross_validation import train_test_split
@@ -195,6 +196,7 @@ class ObjectDetector:
         for i in range(0,len(keepscale)):
             print("Working on layer {0:4d}. Scale {1:.2f}".format(i,keepscale[i]))
             #(b,p)=self.detect_single_layer_mp(keeplayer[i],keepscale[i],winStep,winDim,minProb)
+
             (b,p)=self.detect_single_layer_mt(keeplayer[i],keepscale[i],winStep,winDim,minProb)
             boxes =boxes + b
             probs =probs + p
@@ -203,14 +205,24 @@ class ObjectDetector:
 
 
     def detect_single_layer_mt(self,layer,scale,winStep,winDim,minProb):  # Use multiple threads
+        # Uses multithreading instead of multiprocessing.
+        # map() takes two parameters, a function and a list
+        # it will iterate through the list, and produce another list of the results (p).
+        # In order to pass in multiple arguments, a list of those arguments had to be created first
+        # That is myArgs.
         q=[]
         p=[]
         boxes=[]
         probs=[]
         myArgs=[]
         #q=Queue(); # Not used
-        xx, yy, windows= sliding_window_return(layer, winStep, winDim)
+        if scale == []:
+            xx, yy, windows= sliding_window_return(layer, 1, winDim)
+        else:
+            xx, yy, windows= sliding_window_return(layer, winStep, winDim)
+
         for i in range(0,len(xx)-1):
+
             myArgs.append([xx[i],yy[i],windows[i],layer,winStep,winDim,minProb,scale])
             # myArgs.append(yy)
             # myArgs.append(windows)
@@ -227,11 +239,14 @@ class ObjectDetector:
         for ppp in pp:
                 boxes = boxes + ppp[0]
                 probs = probs + ppp[1]
-
+        p.close()   # Needed to avoid OSError: [Errno 12] Cannot allocate memory
+                    # Solution: https://stackoverflow.com/questions/26717120/python-cannot-allocate-memory-using-multiprocessing-pool
+        p.join()        
         return(boxes,probs)
 
 
-    def detect_single_layer_mp(self,layer,scale,winStep,winDim,minProb): # Use multiple processors
+    def detect_single_layer_mp(self,layer,scale,winStep,winDim,minProb): 
+        # Use multiple processors
         q=[]
         p=[]
         d=[]
@@ -297,7 +312,6 @@ class ObjectDetector:
             #print("There are {} Boxes.".format(len(boxes)))
         return(boxes,probs)
 
-    
     def fff(self,myArgs):
         
         boxes=[]
@@ -362,6 +376,7 @@ class ObjectDetector:
 
     def ff(self,x,y,window,scale,minProb,winDim):
         # Overload version without the Queue
+        # for use with multithreading
         #print("Inside ff()")
         self.processID = os.getpid()
         boxes=[]
@@ -578,6 +593,80 @@ class Conf:
         # return the value associated with the supplied key
         return self.__dict__.get(k, None)
 
+class Get_BodyboxHood: # will need to run this prior to calling class detector = dlib.get_frontal_face_detector()
+    def __init__(self, image):
+        #self.filename_path = filename_path
+        self.detector =  dlib.get_frontal_face_detector()
+        #self.image = dlib.load_rgb_image(self.filename_path)
+        self.image = image
+    
+    def plot_DLIB_results(self,dets,outfolder):
+
+        orig=self.image.copy()
+        for k, d in enumerate(dets):
+            #print("Detection {}: Left: {} Top: {} Right: {} Bottom: {}".format(k, d.left(), d.top(), d.right(), d.bottom()))
+            x1new,y1new,x2new,y2new = self.new_rectangle(orig,d)
+            cv2.rectangle(orig,(x1new,y1new),(x2new,y2new),(0,255,0),2)    
+            #cv2.rectangle(orig,(d.left(),d.top()),(d.right(),d.bottom()),(0,255,0),2)
+
+        #FN=os.path.split(self.filename_path)
+        #resultsimagepath=outfolder + FN[1]
+        #print("Saving: {}".format(resultsimagepath))
+        #cv2.imwrite(resultsimagepath, orig);
+
+        cv2.imshow("myImage",orig)         
+        cv2.waitKey(1000)
+
+
+    def new_rectangle(self,dets):
+
+        x1=dets.left()
+        y1=dets.top()
+        x2=dets.right()
+        y2=dets.bottom()
+        print("x1 {}  y1 {} x2 {}  y2 {}".format(x1,y1,x2,y2))
+        face_width=x2-x1
+        face_height=y2-y1
+
+        scale=8; # Keep even to ensure extraction is square
+        # assume torso is 3*face
+        x1new=x1-int(scale/2*face_width)
+        x2new=x2+int(scale/2*face_width)
+        y1new=y1
+        y2new=y1+scale*face_height  # 4 is tight and get most. 5 will be the insurance box size
+        print("face_width {}  face_height {}".format(face_width,face_height))
+        print("x1new {}  y1new {} x2new {}  y2new {}".format(x1new,y1new,x2new,y2new))
+        return(x1new,y1new,x2new,y2new)
+
+
+    def find_boxes(self):
+        x1=[]
+        y1=[]
+        x2=[]
+        y2=[]
+
+        #print("Processing image {}".format(self.filename_path))
+        #img = dlib.load_rgb_image(self.filename_path)
+        # The 1 in the second argument indicates that we should upsample the image
+        # 1 time.  This will make everything bigger and allow us to detect more
+        # faces.
+        dets = self.detector(self.image ,1)
+        #print("Number of faces detected: {}".format(len(dets)))
+        for i, d in enumerate(dets):
+            x1new,y1new,x2new,y2new = self.new_rectangle(d)
+            x1.append(x1new)
+            y1.append(y1new)
+            x2.append(x2new)
+            y2.append(y2new)
+
+        return(x1,y1,x2,y2)
+
+
+
+
+
+
+
 
 
 # *** Stand Alone METHODS***
@@ -628,6 +717,7 @@ def sliding_window(image, stepSize, windowSize):
 
 def sliding_window_return(image, stepSize, windowSize):
     # slide a window across the image
+    print("Image Size {}, StepSize {}  WindowSize {}".format(image.shape, stepSize, windowSize))
     #cv2.imshow("Image", image)
     #cv2.waitKey(0) 
     
@@ -1017,6 +1107,15 @@ def test_model(hog,conf,image_Filename,SW):
     #maxImageWidth=math.floor(SW[0]/PPC[0])*PPC[0]*4 # scale the image to be 4 time integer multiple of scanning window width
 
     #(boxes, probs) = od.StartDection_MultiProcess(gray,winDim, minSize,  winStep, pyramidScale, minProb)
+    
+
+    boxed_torso_image = Get_Bodybox(gray)
+    x1new,y1new,x2new,y2new = boxed_torso_image.find_boxes()
+    
+    #for iii in range(0,len(x1new)-1):
+    # For now, only use one of the found boxes
+    gray = gray[(x1new[0],y1new[0]),(x2new[0],y2new[0])]
+
     (boxes, probs) = od.start_detection_mp(gray,winDim, minSize,  winStep, pyramidScale, minProb)
     pick = non_max_suppression(np.array(boxes), probs, conf["overlap_thresh"])
     orig = image.copy()
@@ -1050,7 +1149,130 @@ def test_model(hog,conf,image_Filename,SW):
     resultsimagepath=imageresults + FN[1]
     print("Saving: {}".format(resultsimagepath))
     cv2.imwrite(resultsimagepath, image );
-    pause(5) #Pause 5 seconds before the next image.
+    #pause(5) #Pause 5 seconds before the next image.
+
+
+def test_model_using_DLIB_FaceDetection(hog,conf,image_Filename,SW):
+    # load the classifier, then initialize the Histogram of Oriented Gradients descriptor
+    # and the object detector
+    # load the image and convert it to grayscale
+    start=time.time()
+    image = cv2.imread(image_Filename)
+    #image = imutils.resize(image,width=int(conf["max_image_width"]))
+    #image = imutils.resize(image,SW) # resizes to match size used during training
+    #image = cv2.resize(image, width=min(260, image.shape[1]))
+    
+    h,w,d=image.shape
+    print("Testing image: {}  Original shape: {}".format(image_Filename,(h,w)))
+    # Note span reflect # of SW that can fit into the window
+    # TODO: add to hyperparameter JSON File
+    pixelsPerCell=tuple(conf["pixels_per_cell"])
+    #span =5
+    span = int(conf["span"])
+    (objectsize_H,objectsize_W) = calculate_optimal_image_size(pixelsPerCell,SW,span)
+    print("Sliding Window Width: {}  Height: {}".format(SW[0],SW[1]))
+    if SW[0]>SW[1]: # Wide
+        (newHeight,newWidth) =rescaleImage(image, objectsize_W,"L")
+    else:
+        (newHeight,newWidth) =rescaleImage(image, objectsize_H,"P")
+    #if w> h : #Landscape mode
+    #    print("Skpping")
+
+    #        print("[INFO] The image is in landscape mode")
+    #        minWidth=min(int(conf["max_image_width"]), w)  # 1 ==> Columns
+    #        newHeight=math.floor(h/w*minWidth)
+    #        image = cv2.resize(image, (minWidth,newHeight))
+    #else: # Portriat Mode
+    #    print("[INFO] The image is in portrait mode")
+    #    minHeight=min(int(conf["max_image_width"]), h) # 0 ==> Rows
+    #    newWidth =math.floor(w/h*minHeight)
+    #print("Shape before resize")
+    #print(image.shape)
+    image = cv2.resize(image, (newWidth,newHeight))
+    #print("Shape after resize:")
+    #print(image.shape)
+    print("Shape before: {}  Shape after {}".format((h,w),image.shape[0:2]))
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    pfile=conf["classifier_path"]
+
+    # LOAD THE MODEL
+    with open(pfile, 'rb') as f:
+        model = cPickle.load(f, encoding='bytes')
+    f.close()
+  
+    #hog = HOG(orientations=conf["orientations"], pixelsPerCell=tuple(conf["pixels_per_cell"]), 
+    #      cellsPerBlock=tuple(conf["cells_per_block"]), normalize=conf["normalize"])
+    #print(hog)
+   
+    od = ObjectDetector(model, hog)
+
+    #print(od)
+
+    # detect objects in the image and apply non-maxima suppression to the bounding boxes
+    print("Detecting the object")
+    #winDim=conf["sliding_window_dim"]
+    winDim=SW # Recall, the sliding window dimensions are computed. (w,h Opposite shape command)
+    minSize=SW
+    # Need to verify that the window_step is a factor of pixelsPerCell (in both directions)
+    winStep=conf["window_step"]
+    pyramidScale=conf["pyramid_scale"]
+    minProb=conf["min_probability"]
+    #PPC=conf["pixels_per_cell"]
+    #winStep=PPC[0]
+    #maxImageWidth=math.floor(SW[0]/PPC[0])*PPC[0]*4 # scale the image to be 4 time integer multiple of scanning window width
+
+    #(boxes, probs) = od.StartDection_MultiProcess(gray,winDim, minSize,  winStep, pyramidScale, minProb)
+    
+
+    boxed_torso_image = Get_BodyboxHood(gray)
+    x1new,y1new,x2new,y2new = boxed_torso_image.find_boxes()
+    print("Length of x1new {}".format(x1new))
+    for iii in range(0,len(x1new)):
+        # For now, only use one of the found boxes
+        ww=x2new[iii]-x1new[iii]
+        hh=y2new[iii]-y1new[iii]
+        print("ww : {}  hh: {}".format(ww,hh))
+        if ww >= SW[0] and hh >int(1.5*SW[1]):
+            gray = gray[max(0,x1new[iii]):min(x2new[iii],w), max(0,y1new[iii]):min(y2new[iii],h)]
+
+            #(boxes, probs) = od.start_detection_mp(gray,winDim, minSize,  winStep, pyramidScale, minProb)
+            (boxes, probs) = od.detect_single_layer_mt(gray,1,winStep,winDim,minProb)
+            pick = non_max_suppression(np.array(boxes), probs, conf["overlap_thresh"])
+            orig = gray.copy()
+            print("Finished detecting the object")  
+            ##print("boxes: {}".format(boxes))
+
+            if len(boxes) <1 :
+                print("The object was not found")
+            else:
+                # loop over the original bounding boxes and draw them
+                for (startX, startY, endX, endY) in boxes:
+                    cv2.rectangle(orig, (startX, startY), (endX, endY), (0, 0, 255), 10)
+
+                # loop over the allowed bounding boxes and draw them
+                for (startX, startY, endX, endY) in pick:
+                    cv2.rectangle(gray, (startX, startY), (endX, endY), (0, 255, 0), 10)
+
+            # show the output images
+            ##plt.subplot(121),plt.imshow(orig,'gray'),plt.title('Original')
+            ##plt.subplot(122),plt.imshow(image,'gray'),plt.title('Image')
+            ##plt.show()
+            #cv2.imshow("Original", orig)
+            #cv2.imshow("Image", image)
+            #cv2.waitKey(0)
+            end = time.time()
+            duration = end-start
+            
+            imageresults=conf["image_results_folder"]
+            FN=os.path.split(image_Filename)
+            print("Time taken to process {0}:  {1:.2f} s".format(FN[1],duration))
+            resultsimagepath=imageresults + FN[1]
+            print("Saving: {}".format(resultsimagepath))
+            cv2.imwrite(resultsimagepath, gray);
+            #pause(5) #Pause 5 seconds before the next image.
+
+
+
 
 def Hard_Negative_Mining(conf,SW):
     data = []

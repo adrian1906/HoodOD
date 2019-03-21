@@ -27,15 +27,15 @@
 	"max_hog_window_size": 128,
 
 	"_comment4": "OBJECT DETECTOR",
-	"window_step": 8,
+	"window_step": 16,
 	"overlap_thresh": 0.3,
 	"pyramid_scale": 1.414213562,
 	"sliding_window_dim_NOTUSED": [96, 32],
 	"image_resized_NOTUSED": [96, 32],
 	"min_probability": 0.96,
 	"comment8":" This width should be 4 or 5 times max hog windows width",
-	"max_image_width": 800,
-	"max_image_height": 800,
+	"max_image_width_NOTUSED": 800,
+	"max_image_height_NOTUSED": 800,
 	"span": 8,
 
 	"_comment5": "LINEAR SVM suffix: pixels_per_cell,cells_per_block,max_image_height,max_image_height",
